@@ -1,11 +1,12 @@
 package reproduction;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.stream.Collectors;
+
+import org.apache.poi.xssf.usermodel.XSSFCell;
+import org.apache.poi.xssf.usermodel.XSSFRow;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
 
 /**
  * Reads a csv file of compatibility data
@@ -15,6 +16,10 @@ public class DataReader {
 	private int[] ids;
 	private boolean[][] matches;
 	
+	public static void main(String[] args) throws IOException {
+		DataReader dr = new DataReader("Instance_S_1.xlsx");
+		dr.getIds();
+	}
 	/**
 	 * initializes values from the file specified 
 	 * @param fileName file name without .csv
@@ -22,23 +27,43 @@ public class DataReader {
 	 */
 	public DataReader(String fileName) throws IOException {
 		
-		InputStream is = this.getClass().getResourceAsStream("/ "+fileName+".csv" );
-		String filePath;
-		try(BufferedReader br = new BufferedReader(new InputStreamReader(is))){
-			filePath = br.lines().collect(Collectors.joining("\n"));
-		}
-				   	
-        String line;
-        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
-            while ((line = br.readLine()) != null) {
-                // Split the line by commas
-                String[] values = line.split(",");
+		try {
+			XSSFWorkbook wb = new XSSFWorkbook("src/main/resources/"+fileName);
 
-                //TODO make lists when data
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+		     XSSFSheet sheet = wb.getSheetAt(0);
+		        XSSFRow row; 
+		        XSSFCell cell;
+		        
+		    int rows; // No of rows
+		    rows = sheet.getPhysicalNumberOfRows();
+		    int cols = sheet.getRow(0).getLastCellNum();
+		    System.out.println(cols);
+		    this.ids = new int[rows-1];
+		    this.matches = new boolean[rows-1][cols-1];
+		    
+		    for(int r = 1; r < rows; r++) {
+		        row = sheet.getRow(r);
+		        if(row != null) {
+		            for(int c = 0; c < cols; c++) {
+		                cell = row.getCell((short)c);
+		                if(cell != null) {
+		                    if(c == 0) {
+		                    	ids[r-1] = (int) cell.getNumericCellValue();
+		                    }
+		                    else {
+		                    	if(cell.getNumericCellValue() == 1) {
+		                    		matches[r-1][c-1] = true;
+		                    	}
+		                    }
+		                }
+		            }
+		        }
+		    }
+		    wb.close();
+		} catch(Exception ioe) {
+		    ioe.printStackTrace();
+		}
+		System.out.println(ids[34]);
 	}
 	
 	public int[] getIds() {
