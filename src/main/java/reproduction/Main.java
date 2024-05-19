@@ -1,10 +1,20 @@
 package reproduction;
 
+import java.io.IOException;
+
+import org.jgrapht.Graph;
+import org.jgrapht.graph.DefaultEdge;
+import org.jgrapht.graph.SimpleDirectedGraph;
+
 public class Main {
 
-	public static void main(String[] args) {
-		// TODO Auto-generated method stub
+	public static void main(String[] args) throws IOException {
+		
+		CycleFormulation.solve("Instance_S_0.xlsx");
 
+		
+		
+		
 	}
 
 }

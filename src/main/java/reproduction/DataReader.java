@@ -37,7 +37,6 @@ public class DataReader {
 		    int rows; // No of rows
 		    rows = sheet.getPhysicalNumberOfRows();
 		    int cols = sheet.getRow(0).getLastCellNum();
-		    System.out.println(cols);
 		    this.ids = new int[rows-1];
 		    this.matches = new boolean[rows-1][cols-1];
 		    
@@ -63,7 +62,6 @@ public class DataReader {
 		} catch(Exception ioe) {
 		    ioe.printStackTrace();
 		}
-		System.out.println(ids[34]);
 	}
 	
 	public int[] getIds() {
