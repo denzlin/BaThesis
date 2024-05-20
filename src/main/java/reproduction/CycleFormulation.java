@@ -45,7 +45,14 @@ public class CycleFormulation {
 		
 		//find cycles
 		ArrayList<ArrayList<Integer>> cycles = CycleFinder.getCycles(g, 3);
-		System.out.println("test");
+		ArrayList<ArrayList<Integer>> cyclesPerVertex = new ArrayList<>();
+		
+		for(int i = 0; i<cycles.size(); i++) {
+			for(Integer v : cycles.get(i)) {
+				cyclesPerVertex.get(v).add(i);
+			}
+		}
+
 		
 	}
 }
