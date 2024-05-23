@@ -23,7 +23,7 @@ import com.gurobi.gurobi.GRB.IntParam;
 public class EEFormulation {
 
 	public static void solve(ArrayList<ArrayList<Integer>> cycles, int k, int n) throws GRBException {
-
+		System.out.println("\nStarting EE solve\n");
 		//create empty graph copies
 		ArrayList<HashSet<Pair<Integer, Integer>>> copies = new ArrayList<>(n);
 		for(int i = 0; i<n; i++) {
@@ -40,11 +40,10 @@ public class EEFormulation {
 
 			copies.get(min).add(new Pair<>(c.get(c.size()-1), c.get(0)));
 		}
-
 		//construct gurobi model
 		GRBEnv env = new GRBEnv(true);
 		env.set(IntParam.OutputFlag, 0);
-		//env.set("logFile", "mip1.log");
+		env.set("logFile", "mip1.log");
 		env.start();
 
 		GRBModel model = new GRBModel(env);
@@ -62,7 +61,7 @@ public class EEFormulation {
 				}
 			}
 		}
-
+		System.out.println("vars created");
 		//create objective
 		GRBLinExpr obj = new GRBLinExpr();
 
@@ -71,30 +70,34 @@ public class EEFormulation {
 		}
 		model.setObjective(obj, GRB.MAXIMIZE);
 
-		
+
 
 		//restriction 9b
-		for(int l = 0; l<n; l++) {			
-			for(int i = l; i<n; i++) {
-				GRBLinExpr b = new GRBLinExpr();
-				for(int j = l; j<n; j++) {
+		for(int l = 0; l<n; l++) {
+			System.out.println("on 9b copy "+l);
+			if(!copies.get(l).isEmpty()) {
+				for(int i = l; i<n; i++) {
+					GRBLinExpr b = new GRBLinExpr();
+					for(int j = l; j<n; j++) {
 
-					//lhs
-					ImmutableTriple<Integer, Integer, Integer> key = new ImmutableTriple<>(l,j,i);
-					if(x.get(key)!=null) {
-						b.addTerm(1, x.get(key));
+						//lhs
+						ImmutableTriple<Integer, Integer, Integer> key = new ImmutableTriple<>(l,j,i);
+						if(x.get(key)!=null) {
+							b.addTerm(1, x.get(key));
+						}
+
+						//rhs
+						key = new ImmutableTriple<>(l,i,j);
+						if(x.get(key)!=null) {
+							b.addTerm(-1, x.get(key));
+						}
+
 					}
-
-					//rhs
-					key = new ImmutableTriple<>(l,i,j);
-					if(x.get(key)!=null) {
-						b.addTerm(-1, x.get(key));
-					}
-
+					model.addConstr(b, GRB.LESS_EQUAL, 0, "9b_"+l+"_"+i);
 				}
-				model.addConstr(b, GRB.LESS_EQUAL, 0, "9b_"+l+"_"+i);
 			}
 		}
+		System.out.println("constr 9b added");
 
 		//restriction 9c
 		for(int i = 0; i<n; i++) {
@@ -111,6 +114,7 @@ public class EEFormulation {
 				model.addConstr(constr, GRB.LESS_EQUAL, 1, "9c_"+i);
 			}
 		}
+		System.out.println("constr 9c added");
 
 		//restriction 9d
 		ArrayList<GRBLinExpr> constraints = new ArrayList<>();
@@ -125,6 +129,8 @@ public class EEFormulation {
 				model.addConstr(expr, GRB.LESS_EQUAL, k, "9d_"+constraints.indexOf(expr));
 			}
 		}
+		System.out.println("constr 9d added");
+
 
 		//restriction 9e
 		for(int l = 0; l<n; l++) {			
@@ -139,24 +145,25 @@ public class EEFormulation {
 					if(x.get(key) != null) {
 						e.addTerm(-1, x.get(key));
 					}
-					
+
 				}
 				if(e.size() != 0) {
 					model.addConstr(e, GRB.LESS_EQUAL, 0, "9e_"+l+"_"+i);
 				}
-				
+
 			}
 		}
+		System.out.println("constr 9e added");
 
 		model.optimize();
-		
+
 		//uncomment to see which edges are chosen
 		/*
 		 * double[] vals = model.get(GRB.DoubleAttr.X, model.getVars()); GRBVar[] vars =
 		 * model.getVars(); for(GRBVar var : vars) { if(var.get(GRB.DoubleAttr.X) == 1)
 		 * { System.out.println(var.get(GRB.StringAttr.VarName)+" = 1"); } }
 		 */
-		
+
 		System.out.println("EE    -> Pairs matched: " + model.get(GRB.DoubleAttr.ObjVal));
 	}
 }

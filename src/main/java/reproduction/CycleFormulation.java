@@ -2,8 +2,11 @@ package reproduction;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.jgrapht.alg.util.Pair;
+import org.jgrapht.alg.util.Triple;
 
 import com.gurobi.gurobi.GRB;
 import com.gurobi.gurobi.GRBEnv;
@@ -25,11 +28,12 @@ public class CycleFormulation {
 	 * @throws IOException 
 	 * @throws GRBException 
 	 */
-	public static void solve(ArrayList<ArrayList<Integer>> cycles, int k, int n) throws IOException, GRBException {
+	public static Pair<Integer, Double> solve(ArrayList<ArrayList<Integer>> cycles, int k, int n) throws IOException, GRBException {
 
+		
 		GRBEnv env = new GRBEnv(true);
 		env.set(IntParam.OutputFlag, 0);
-		//env.set("logFile", "mip1.log");
+		env.set("logFile", "mip1.log");
 		env.start();
 
 		GRBModel model = new GRBModel(env);
@@ -77,8 +81,14 @@ public class CycleFormulation {
 			}
 		}
 
-		model.optimize();
 		
+		long startTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
+		model.optimize();
+		Integer T = Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()) - startTime);
+		
+		GRBModel relaxed = model.relax();
+		relaxed.optimize();
+		double gap = relaxed.get(GRB.DoubleAttr.ObjVal) - model.get(GRB.DoubleAttr.ObjVal);
 		//uncomment to see which cycles are chosen
 		/*
 		GRBVar[] vars = model.getVars();
@@ -88,6 +98,10 @@ public class CycleFormulation {
 			}
 		}
 		*/
+		
 		System.out.println("Cycle -> Pairs matched: " + model.get(GRB.DoubleAttr.ObjVal) + " out of " + n + ". " +emptyCounter+ " pairs were unmatchable");
+		
+		Pair<Integer, Double> result = new Pair<Integer, Double>(T, gap);
+		return result;
 	}
 }
