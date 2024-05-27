@@ -32,7 +32,7 @@ public class CycleFormulation {
 
 		
 		GRBEnv env = new GRBEnv(true);
-		env.set(IntParam.OutputFlag, 0);
+		//env.set(IntParam.OutputFlag, 0);
 		env.set("logFile", "mip1.log");
 		env.start();
 

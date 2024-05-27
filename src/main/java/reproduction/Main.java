@@ -4,9 +4,12 @@ import java.io.File;
 import java.io.IOException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
+import org.jgrapht.alg.connectivity.GabowStrongConnectivityInspector;
 import org.jgrapht.alg.util.Pair;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.SimpleDirectedGraph;
@@ -15,13 +18,15 @@ import com.gurobi.gurobi.GRBException;
 
 import data_read_write.ExcelReader;
 import data_read_write.WMDReader;
+import util.CycleFinder;
+import util.PairValues;
 
 public class Main {
 
 	public static void main(String[] args) throws IOException, GRBException {
 
 
-		final int k = 4;
+		final int k = 3;
 		double T_average = 0;
 		double gapAverage = 0;
 		double cycleT_average = 0;
@@ -29,7 +34,7 @@ public class Main {
 		File folder = new File("src/main/resources/preflib");
 		File[] listOfFiles = folder.listFiles();
 		
-		for(int u = 0; u<10; u++) {
+		for(int u = 71; u<72; u++) {
 			File data = listOfFiles[u];
 			
 			System.out.println("Matching " + data.getName());
@@ -44,7 +49,7 @@ public class Main {
 					}
 				}
 			}
-
+			
 			SimpleDirectedGraph<Integer, DefaultEdge> g = new SimpleDirectedGraph<>(DefaultEdge.class);
 
 			//add vertices
@@ -62,15 +67,29 @@ public class Main {
 					}
 				}
 			}
-
+			
+			//uncomment to see if disjoint sets exist
+			/*
+			GabowStrongConnectivityInspector<Integer, DefaultEdge> insp = new GabowStrongConnectivityInspector(g);
+			if(!insp.isStronglyConnected()) {
+				System.out.println("Graph not strongly connected, analysing...");
+				for(Set<Integer> set : insp.stronglyConnectedSets()) {
+					System.out.println("set size: "+ set.size());
+				}
+			} else {
+				System.out.println("graph is strongly connected");
+			}
+			*/
+			
 			//find cycles
 			System.out.println("Starting Cycle Search");
 			long startTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
 			ArrayList<ArrayList<Integer>> cycles = CycleFinder.getCycles(g, k);
 			cycleT_average += TimeUnit.NANOSECONDS.toSeconds((System.nanoTime())) - startTime;
+		
 			System.out.println(cycles.size() + " cycles found in " +(TimeUnit.NANOSECONDS.toSeconds((System.nanoTime())) - startTime)+ " seconds.");
 			int n = g.vertexSet().size();
-			System.out.println("Data has " +matches.length+ " pairs with an average density of " + matchCount/(double) matches.length +" matches per node");
+			System.out.println("Data has " +matches.length+ " pairs with an average density of " + matchCount/(double) Math.pow(matches.length,2));
 
 			//EEFormulation.solve(cycles, k, n);
 			Pair<Integer, Double> result = CycleFormulation.solve(cycles, k, n);
