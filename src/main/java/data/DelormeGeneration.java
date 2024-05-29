@@ -1,4 +1,4 @@
-package data_read_write;
+package data;
 
 public class DelormeGeneration {
 

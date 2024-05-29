@@ -32,21 +32,32 @@ public class CycleFormulation {
 
 		
 		GRBEnv env = new GRBEnv(true);
-		//env.set(IntParam.OutputFlag, 0);
+		env.set(IntParam.OutputFlag, 0);
 		env.set("logFile", "mip1.log");
 		env.start();
 
 		GRBModel model = new GRBModel(env);
-
+		model.set(GRB.DoubleParam.TimeLimit, 3600.0);
+		
+		//for multiple solutions
+		/*
+		model.set(GRB.DoubleParam.PoolGap, 0);
+		model.set(GRB.IntParam.PoolSearchMode, 2);
+		model.set(GRB.IntParam.PoolSolutions, 100);
+		*/
+		
 		// create list of cycle variables
 		GRBVar[] z = new GRBVar[cycles.size()];
-
+		if(cycles.size()>24000000) {
+			return null;
+		}
+		long varStart = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
 		for(int c = 0; c<cycles.size(); c++) {
 			String listString = cycles.get(c).stream().map(Object::toString)
                     .collect(Collectors.joining(","));
 			z[c] = model.addVar(0, 1, 0, GRB.BINARY, "z("+listString+")");
 		}
-
+		
 		//create objective
 		GRBLinExpr obj = new GRBLinExpr();
 		for(int c = 0; c<cycles.size(); c++) {
@@ -79,16 +90,15 @@ public class CycleFormulation {
 			else {
 				emptyCounter++;
 			}
-		}
-
-		
+		}		
 		long startTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
 		model.optimize();
 		Integer T = Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()) - startTime);
-		
+		System.out.println(" status code: " +model.get(GRB.IntAttr.Status));
 		GRBModel relaxed = model.relax();
 		relaxed.optimize();
 		double gap = relaxed.get(GRB.DoubleAttr.ObjVal) - model.get(GRB.DoubleAttr.ObjVal);
+		
 		//uncomment to see which cycles are chosen
 		/*
 		GRBVar[] vars = model.getVars();
@@ -99,8 +109,21 @@ public class CycleFormulation {
 		}
 		*/
 		
-		System.out.println("Cycle -> Pairs matched: " + model.get(GRB.DoubleAttr.ObjVal) + " out of " + n + ". " +emptyCounter+ " pairs were unmatchable");
+		//for multiple solutions
+		/*
+		int equiCounter = 1;
+		for(int i = 1; i<10000; i++) {
+			model.set(GRB.IntParam.SolutionNumber, i);
+			if(model.get(GRB.DoubleAttr.PoolObjVal) == model.get(GRB.DoubleAttr.ObjVal)) {
+				equiCounter ++;
+			}
+		}
 		
+		System.out.println("Number of equivalent solutions: "+ equiCounter);
+		*/
+		
+		System.out.println("Cycle -> Pairs matched: " + model.get(GRB.DoubleAttr.ObjVal) + " out of " + n + ". " +emptyCounter+ " pairs were unmatchable");
+		env.dispose();
 		Pair<Integer, Double> result = new Pair<Integer, Double>(T, gap);
 		return result;
 	}

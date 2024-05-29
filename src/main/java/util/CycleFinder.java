@@ -19,6 +19,8 @@ public class CycleFinder {
 		finder.setPathLimit(k);
 		ArrayList<ArrayList<Integer>> cycles = new ArrayList<>();
 		finder.findSimpleCycles(new CycleConsumer(cycles));
+		
+		
 		return cycles;
 	}
 

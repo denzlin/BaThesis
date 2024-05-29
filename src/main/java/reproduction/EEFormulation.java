@@ -3,6 +3,7 @@ package reproduction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
 
 import org.jgrapht.alg.util.Pair;
 
@@ -22,7 +23,7 @@ import com.gurobi.gurobi.GRB.IntParam;
  */
 public class EEFormulation {
 
-	public static void solve(ArrayList<ArrayList<Integer>> cycles, int k, int n) throws GRBException {
+	public static Pair<Integer, Double> solve(ArrayList<ArrayList<Integer>> cycles, int k, int n) throws GRBException {
 		System.out.println("\nStarting EE solve\n");
 		//create empty graph copies
 		ArrayList<HashSet<Pair<Integer, Integer>>> copies = new ArrayList<>(n);
@@ -50,6 +51,7 @@ public class EEFormulation {
 
 		HashMap<Triple<Integer, Integer, Integer>, GRBVar> x = new HashMap<>();
 
+		long constructStart = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
 		//reduce size
 		for(int l = 0; l<n; l++) {
 			for(Pair<Integer, Integer> edge : copies.get(l)) {
@@ -74,7 +76,6 @@ public class EEFormulation {
 
 		//restriction 9b
 		for(int l = 0; l<n; l++) {
-			System.out.println("on 9b copy "+l);
 			if(!copies.get(l).isEmpty()) {
 				for(int i = l; i<n; i++) {
 					GRBLinExpr b = new GRBLinExpr();
@@ -97,7 +98,6 @@ public class EEFormulation {
 				}
 			}
 		}
-		System.out.println("constr 9b added");
 
 		//restriction 9c
 		for(int i = 0; i<n; i++) {
@@ -114,7 +114,6 @@ public class EEFormulation {
 				model.addConstr(constr, GRB.LESS_EQUAL, 1, "9c_"+i);
 			}
 		}
-		System.out.println("constr 9c added");
 
 		//restriction 9d
 		ArrayList<GRBLinExpr> constraints = new ArrayList<>();
@@ -129,7 +128,6 @@ public class EEFormulation {
 				model.addConstr(expr, GRB.LESS_EQUAL, k, "9d_"+constraints.indexOf(expr));
 			}
 		}
-		System.out.println("constr 9d added");
 
 
 		//restriction 9e
@@ -153,10 +151,7 @@ public class EEFormulation {
 
 			}
 		}
-		System.out.println("constr 9e added");
-
-		model.optimize();
-
+		System.out.println("model constructed in "+ (TimeUnit.NANOSECONDS.toSeconds(System.nanoTime())-constructStart));
 		//uncomment to see which edges are chosen
 		/*
 		 * double[] vals = model.get(GRB.DoubleAttr.X, model.getVars()); GRBVar[] vars =
@@ -164,6 +159,27 @@ public class EEFormulation {
 		 * { System.out.println(var.get(GRB.StringAttr.VarName)+" = 1"); } }
 		 */
 
-		System.out.println("EE    -> Pairs matched: " + model.get(GRB.DoubleAttr.ObjVal));
+		long startTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
+		model.optimize();
+		Integer T = Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()) - startTime);
+		
+		GRBModel relaxed = model.relax();
+		relaxed.optimize();
+		double gap = relaxed.get(GRB.DoubleAttr.ObjVal) - model.get(GRB.DoubleAttr.ObjVal);
+		
+		//uncomment to see which cycles are chosen
+		/*
+		GRBVar[] vars = model.getVars();
+		for(GRBVar var : vars) {
+			if(var.get(GRB.DoubleAttr.X) == 1) {
+				System.out.println(var.get(GRB.StringAttr.VarName));
+			}
+		}
+		*/
+		
+		System.out.println("Cycle -> Pairs matched: " + model.get(GRB.DoubleAttr.ObjVal) + " out of " + n + ". ");
+		env.dispose();
+		Pair<Integer, Double> result = new Pair<Integer, Double>(T, gap);
+		return result;
 	}
 }

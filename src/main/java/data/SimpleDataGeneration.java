@@ -1,4 +1,4 @@
-package data_read_write;
+package data;
 
 import java.util.Random;
 
@@ -21,8 +21,10 @@ public class SimpleDataGeneration {
 		Random r = new Random();
 		boolean[][] matches = new boolean[n][n];
 		for(int i = 0; i<n; i++) {
-			for(int j = 0; j<0; j++) {
-				matches[i][j] = r.nextDouble()<density;
+			for(int j = 0; j<n; j++) {
+				if(i!=j) {
+					matches[i][j] = r.nextDouble()<density;
+				}
 			}
 		}
 		return matches;
