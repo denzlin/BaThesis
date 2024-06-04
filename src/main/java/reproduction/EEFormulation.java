@@ -23,14 +23,22 @@ import com.gurobi.gurobi.GRB.IntParam;
  */
 public class EEFormulation {
 
-	public static Pair<Integer, Double> solve(ArrayList<ArrayList<Integer>> cycles, int k, int n) throws GRBException {
+	public static Pair<Integer, Double> solve(boolean[][] matches, int k, ArrayList<ArrayList<Integer>> cycles) throws GRBException {
 		System.out.println("\nStarting EE solve\n");
-		//create empty graph copies
-		ArrayList<HashSet<Pair<Integer, Integer>>> copies = new ArrayList<>(n);
-		for(int i = 0; i<n; i++) {
-			copies.add(new HashSet<Pair<Integer, Integer>>());
-		}
 
+		int n = matches.length;
+		//create empty graph copies
+		
+		long reductionStart = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
+
+		ArrayList<HashSet<Pair<Integer, Integer>>> copies = edgesPerCopy(matches, k);
+		/*
+		ArrayList<HashSet<Pair<Integer, Integer>>> copies = new ArrayList<>();
+		for(int l = 0; l<n; l++) {
+
+			HashSet<Pair<Integer, Integer>> copy = new HashSet<>();
+			copies.add(copy);
+		}
 		//edge reduction: only add existing cycles to copies
 		for(ArrayList<Integer> c : cycles) {
 			int min = c.stream().mapToInt(Integer::valueOf).min().getAsInt();
@@ -41,6 +49,9 @@ public class EEFormulation {
 
 			copies.get(min).add(new Pair<>(c.get(c.size()-1), c.get(0)));
 		}
+		*/
+		System.out.println("reduction performed in "+ (TimeUnit.NANOSECONDS.toSeconds(System.nanoTime())-reductionStart) + " seconds");
+
 		//construct gurobi model
 		GRBEnv env = new GRBEnv(true);
 		env.set(IntParam.OutputFlag, 0);
@@ -63,7 +74,7 @@ public class EEFormulation {
 				}
 			}
 		}
-		System.out.println("vars created");
+		System.out.println(x.size()+" vars created in "+(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime())-constructStart) +" seconds" );
 		//create objective
 		GRBLinExpr obj = new GRBLinExpr();
 
@@ -162,24 +173,63 @@ public class EEFormulation {
 		long startTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
 		model.optimize();
 		Integer T = Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()) - startTime);
-		
+
 		GRBModel relaxed = model.relax();
 		relaxed.optimize();
 		double gap = relaxed.get(GRB.DoubleAttr.ObjVal) - model.get(GRB.DoubleAttr.ObjVal);
-		
+
 		//uncomment to see which cycles are chosen
-		/*
+		
 		GRBVar[] vars = model.getVars();
 		for(GRBVar var : vars) {
 			if(var.get(GRB.DoubleAttr.X) == 1) {
 				System.out.println(var.get(GRB.StringAttr.VarName));
 			}
 		}
-		*/
 		
-		System.out.println("Cycle -> Pairs matched: " + model.get(GRB.DoubleAttr.ObjVal) + " out of " + n + ". ");
+
+		System.out.println("EE -> Pairs matched: " + model.get(GRB.DoubleAttr.ObjVal) + " out of " + n + ". \n");
 		env.dispose();
 		Pair<Integer, Double> result = new Pair<Integer, Double>(T, gap);
 		return result;
+	}
+
+	public static ArrayList<HashSet<Pair<Integer, Integer>>> edgesPerCopy(boolean[][] matches, int k) {
+		int n = matches.length;
+		ArrayList<HashSet<Pair<Integer, Integer>>> copies =  new ArrayList<>(n);
+		for(int l = 0; l<n; l++) {
+
+			HashSet<Pair<Integer, Integer>> copy = new HashSet<>();
+			ArrayList<Integer> route = new ArrayList<>(k);
+			route.add(l);
+			recursiveFind(matches, k, route, copy);
+
+			copies.add(copy);
+		}
+		return copies;
+	}
+
+	private static void recursiveFind(boolean[][] matches, int k, ArrayList<Integer> route, HashSet<Pair<Integer, Integer>> copy) {
+		int end = route.get(route.size()-1);
+		int l = route.get(0);
+
+		if(matches[end][l]) {
+			for(int i = 0; i<route.size()-1; i++) {
+				copy.add(new Pair<>(route.get(i), route.get(i+1)));
+			}
+			copy.add(new Pair<>(end, l));
+		}
+
+		if(route.size() < k) {
+			for(int i = l+1; i< matches.length; i++) {
+
+				if(matches[end][i] && !route.contains(i)) {
+					ArrayList<Integer> newRoute = new ArrayList<>(k);
+					newRoute.addAll(route);
+					newRoute.add(i);
+					recursiveFind(matches, k, newRoute, copy);
+				}
+			}
+		}
 	}
 }
