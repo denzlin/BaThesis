@@ -37,7 +37,7 @@ public class Main {
 		File[] listOfFiles = folder.listFiles();
 		
 		int testSetSize = 10;
-		for(int u = 30; u<40; u++) {
+		for(int u = 40; u<50; u++) {
 			File data = listOfFiles[u];
 			
 			System.out.println("["+LocalTime.now().truncatedTo(ChronoUnit.MINUTES).toString()+"] "+"Matching " + data.getName());
@@ -84,7 +84,7 @@ public class Main {
 			long startTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
 			ArrayList<ArrayList<Integer>> cycles = CycleFinder.getCycles(g, k);
 			cycleT_average += TimeUnit.NANOSECONDS.toSeconds((System.nanoTime())) - startTime;
-			cycleValuesAll.addAll(PairValues.calculateCycles(matches, cycles, false));
+			cycleValuesAll.addAll(PairValues.calculateCycles(matches, cycles, true));
 			
 			System.out.println(cycles.size() + " cycles found in " +(TimeUnit.NANOSECONDS.toSeconds((System.nanoTime()))
 					- startTime)+ " seconds for k = "+k);
@@ -105,7 +105,7 @@ public class Main {
 			for(Integer cycle : cf.getSolutionCycles()) {
 				solutionCycles.add(cycles.get(cycle));
 			}
-			cycleValuesSol.addAll(PairValues.calculateCycles(matches, solutionCycles, false));
+			cycleValuesSol.addAll(PairValues.calculateCycles(matches, solutionCycles, true));
 			
 			T_average += result.getFirst();
 			gapAverage += result.getSecond();
@@ -120,25 +120,25 @@ public class Main {
 		double max = Collections.max(cycleValuesAll);
 		
 		//assign cycle values to distribution buckets
-		double[] distrAll = new double[10];
+		double[] distrAll = new double[20];
 		for(double value : cycleValuesAll) {
-			distrAll[(int) Math.ceil((value/max)*(10))-1]++;
+			distrAll[(int) Math.ceil((value/max)*(20))-1]++;
 		}
 		//standardize units
 		for(int i = 0; i<distrAll.length;i++) {
 			distrAll[i] = distrAll[i]/(double) cycleValuesAll.size();
-			distrAll[i] = Math.round(distrAll[i]*100);
+			distrAll[i] = Math.round(distrAll[i]*10000)/100.0;
 		}
 		System.out.println("\nAll cycles score distribution (in %):\n"+Arrays.toString(distrAll));
 		
-		double[] distrSol = new double[10];
+		double[] distrSol = new double[20];
 		for(double value : cycleValuesSol) {
-			distrSol[(int) Math.ceil((value/max)*(10))-1]++;
+			distrSol[(int) Math.ceil((value/max)*(20))-1]++;
 		}
 		
 		for(int i = 0; i<distrSol.length;i++) {
 			distrSol[i] = distrSol[i]/(double) cycleValuesSol.size();
-			distrSol[i] = Math.round(distrSol[i]*100);
+			distrSol[i] = Math.round(distrSol[i]*10000)/100.0;
 		}
 		System.out.println("\nSolution cycles score distribution (in %):\n"+Arrays.toString(distrSol)+"\n");
 	}

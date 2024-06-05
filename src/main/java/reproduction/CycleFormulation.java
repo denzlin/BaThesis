@@ -53,8 +53,9 @@ public class CycleFormulation {
 		GRBModel model = new GRBModel(env);
 		model.set(GRB.DoubleParam.TimeLimit, 3600.0);
 		model.set(GRB.DoubleParam.PoolGap, 0.0);
-		model.set(GRB.IntParam.PoolSearchMode, 2);
-		model.set(GRB.IntParam.PoolSolutions, 5);
+		model.set(GRB.IntParam.PoolSearchMode, 0);
+		int solNum = 1;
+		model.set(GRB.IntParam.PoolSolutions, solNum);
 		model.set(GRB.IntParam.Seed, r.nextInt(100));
 
 		// create list of cycle variables
@@ -109,19 +110,24 @@ public class CycleFormulation {
 		GRBModel relaxed = model.relax();
 		relaxed.optimize();
 		double gap = relaxed.get(GRB.DoubleAttr.ObjVal) - model.get(GRB.DoubleAttr.ObjVal);
+		
+		
 		//for multiple solutions
-
-		int equiCounter = 0;
-		for(int i = 1; i<5; i++) {
+		
+		int equiCounter = 1;
+		for(int i = 1; i<solNum; i++) {
 			model.set(GRB.IntParam.SolutionNumber, i);
 			if(model.get(GRB.DoubleAttr.PoolObjVal) == model.get(GRB.DoubleAttr.ObjVal)) {
 				equiCounter ++;
 			}
 		}
 
+		
 		System.out.println("Number of equivalent solutions: "+ equiCounter);
 
 		model.set(GRB.IntParam.SolutionNumber, r.nextInt(equiCounter));
+		
+		
 		solutionCycles = new ArrayList<>();
 		for(int u = 0; u<z.length; u++) {
 			GRBVar var = z[u];
@@ -129,12 +135,13 @@ public class CycleFormulation {
 				solutionCycles.add(u);
 			}
 		}
+		
 
 
 
 
 		System.out.println("Solved in "+T+" seconds");
-		System.out.println("Cycle -> Pairs matched: " + model.get(GRB.DoubleAttr.PoolObjVal) + " out of " + n + ". " +emptyCounter+ " pairs were not in any cycle");
+		System.out.println("Cycle -> Pairs matched: " + model.get(GRB.DoubleAttr.ObjVal) + " out of " + n + ". " +emptyCounter+ " pairs were not in any cycle");
 		env.dispose();
 		Pair<Integer, Double> result = new Pair<Integer, Double>(T, gap);
 		return result;

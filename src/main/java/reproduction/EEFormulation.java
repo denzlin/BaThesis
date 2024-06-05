@@ -3,6 +3,8 @@ package reproduction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 import org.jgrapht.alg.util.Pair;
@@ -32,24 +34,7 @@ public class EEFormulation {
 		long reductionStart = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
 
 		ArrayList<HashSet<Pair<Integer, Integer>>> copies = edgesPerCopy(matches, k);
-		/*
-		ArrayList<HashSet<Pair<Integer, Integer>>> copies = new ArrayList<>();
-		for(int l = 0; l<n; l++) {
-
-			HashSet<Pair<Integer, Integer>> copy = new HashSet<>();
-			copies.add(copy);
-		}
-		//edge reduction: only add existing cycles to copies
-		for(ArrayList<Integer> c : cycles) {
-			int min = c.stream().mapToInt(Integer::valueOf).min().getAsInt();
-
-			for(int v = 0; v<c.size()-1; v++) {
-				copies.get(min).add(new Pair<>(c.get(v), c.get(v+1)));
-			}
-
-			copies.get(min).add(new Pair<>(c.get(c.size()-1), c.get(0)));
-		}
-		*/
+		
 		System.out.println("reduction performed in "+ (TimeUnit.NANOSECONDS.toSeconds(System.nanoTime())-reductionStart) + " seconds");
 
 		//construct gurobi model
@@ -194,34 +179,36 @@ public class EEFormulation {
 		return result;
 	}
 
-	public static ArrayList<HashSet<Pair<Integer, Integer>>> edgesPerCopy(boolean[][] matches, int k) {
+	public static ArrayList<GraphCopy> createCopies(boolean[][] matches, int k) {
 		int n = matches.length;
-		ArrayList<HashSet<Pair<Integer, Integer>>> copies =  new ArrayList<>(n);
+		ArrayList<GraphCopy> copies =  new ArrayList<>(n);
 		for(int l = 0; l<n; l++) {
 
-			HashSet<Pair<Integer, Integer>> copy = new HashSet<>();
+			GraphCopy copy = new GraphCopy();
 			ArrayList<Integer> route = new ArrayList<>(k);
 			route.add(l);
 			recursiveFind(matches, k, route, copy);
-
+			copy.makeMatrix();
 			copies.add(copy);
 		}
 		return copies;
 	}
 
-	private static void recursiveFind(boolean[][] matches, int k, ArrayList<Integer> route, HashSet<Pair<Integer, Integer>> copy) {
+	private static void recursiveFind(boolean[][] matches, int k, ArrayList<Integer> route, GraphCopy copy) {
 		int end = route.get(route.size()-1);
 		int l = route.get(0);
 
 		if(matches[end][l]) {
 			for(int i = 0; i<route.size()-1; i++) {
-				copy.add(new Pair<>(route.get(i), route.get(i+1)));
+				
+				copy.getEdgeList().add(new Pair<>(route.get(i),route.get(i+1)));
 			}
-			copy.add(new Pair<>(end, l));
+			copy.getEdgeList().add(new Pair<>(end, l));
+			copy.getIds().addAll(route);
 		}
 
 		if(route.size() < k) {
-			for(int i = l+1; i< matches.length; i++) {
+			for(int i = l+1; i<matches.length; i++) {
 
 				if(matches[end][i] && !route.contains(i)) {
 					ArrayList<Integer> newRoute = new ArrayList<>(k);
@@ -231,5 +218,51 @@ public class EEFormulation {
 				}
 			}
 		}
+	}
+	
+	private static class GraphCopy {
+		private TreeSet<Integer> ids;
+		private ArrayList<Pair<Integer, Integer>> edgeList;
+		private boolean[][] edges;
+		private ArrayList<Integer> idList;
+		private HashMap<Integer, Integer> columns;
+		public GraphCopy() {
+			this.ids = new TreeSet<>();
+			this.edgeList = new ArrayList<>();
+			this.columns = new HashMap<>();
+		}
+
+		public void makeMatrix() {
+			idList = new ArrayList<Integer>();
+			
+			Iterator<Integer> iter = ids.iterator();
+			int pointer = 0;
+			while(iter.hasNext()) {
+				int id = iter.next();
+				idList.add(id);
+				columns.put(id, pointer);
+				pointer++;
+			}
+			
+			//TODO: vul matrix in met edgelist, of doe gewoon opnieuw dit is waarschijnlijk rommel
+			
+		}
+		public TreeSet<Integer> getIds() {
+			return ids;
+		}
+
+		public ArrayList<Pair<Integer, Integer>> getEdgeList() {
+			return edgeList;
+		}
+
+		public boolean[][] getEdges() {
+			return edges;
+		}
+
+		public int size() {
+			return ids.size();
+		}
+
+		
 	}
 }

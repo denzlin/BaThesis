@@ -46,13 +46,13 @@ public class PairValues {
 		for(ArrayList<Integer> cycle : cycles) {
 			double value = 0;
 			for(int i = 0; i<cycle.size()-1;i++) {
-				value += pairValues[cycle.get(i)][0] + pairValues[cycle.get(i+1)][1];
+				value +=(pairValues[cycle.get(i)][0]*pairValues[cycle.get(i+1)][1]);
 				//System.out.print("("+pairValues[cycle.get(i)][0]+" to "+pairValues[cycle.get(i+1)][1]+") -> ");
 				
 			}
 			
 			//take donor score of vertex i and recipient score of vertex i+1
-			value += pairValues[cycle.get(0)][0] + pairValues[cycle.get(cycle.size()-1)][1];
+			value += pairValues[cycle.get(0)][0]*pairValues[cycle.get(cycle.size()-1)][1];
 			
 			//System.out.print("("+pairValues[cycle.get(0)][0]+" to "+pairValues[cycle.get(cycle.size()-1)][1]+")\n");
 			if(averaged) {
