@@ -1,13 +1,17 @@
 package reproduction;
 
+import java.io.File;
 import java.io.IOException;
+import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.jgrapht.alg.util.Pair;
-import org.jgrapht.alg.util.Triple;
+import org.jgrapht.graph.DefaultEdge;
+import org.jgrapht.graph.SimpleDirectedGraph;
 
 import com.gurobi.gurobi.GRB;
 import com.gurobi.gurobi.GRBEnv;
@@ -17,22 +21,47 @@ import com.gurobi.gurobi.GRBModel;
 import com.gurobi.gurobi.GRBVar;
 import com.gurobi.gurobi.GRB.IntParam;
 
-import util.PairValues;
+import data.XMLData;
+import heuristics.CyclePackingFormulation;
+import util.CycleUtils;
+
 
 /**
  * Solves the cycle formulation of the problem
  */
 public class CycleFormulation {
 
-	private ArrayList<ArrayList<Integer>> cycles;
-	private int k;
-	private int n;
-	private ArrayList<Integer> solutionCycles;
+	public static Pair<Integer, Double> run(File data, int k, ArrayList<Double> cycleValuesAll, ArrayList<Double> cycleValuesSol) throws GRBException, IOException {
+		System.out.println("["+LocalTime.now().truncatedTo(ChronoUnit.MINUTES).toString()+"] "+"Matching " + data.getName());
 
-	public CycleFormulation(ArrayList<ArrayList<Integer>> cycles, int k, int n) {
-		this.cycles = cycles;
-		this.k = k;
-		this.n = n;
+		//ExcelReader dr = new ExcelReader(data);
+		//final boolean[][] matches = WMDReader.read(data);
+		//final boolean[][] matches = SimpleDataGeneration.generate(n, density);
+		//System.out.println("Simple data generated with n = "+n+" and a density of "+density);
+
+		XMLData reader = new XMLData(data);
+		final boolean[][] matches = reader.getMatches();
+		int n = matches.length;
+
+		double matchCount = 0;
+		for(boolean[] row : matches) {
+			for(boolean val : row) {
+				if(val) {
+					matchCount++;
+				}
+			}
+		}
+
+		ArrayList<ArrayList<Integer>> cycles = CycleUtils.getCycles(matches, k);
+
+		double density = matchCount/(double) Math.pow(matches.length,2)*100/100;
+		System.out.println("Data has " +matches.length+ " matchable pairs with an average density of " + density);
+
+
+		Pair<Integer, Double> result = solve(cycles, matches, n, cycleValuesAll, cycleValuesSol);
+
+
+		return result;
 	}
 	/**
 	 * initiates solve
@@ -41,28 +70,42 @@ public class CycleFormulation {
 	 * @throws IOException 
 	 * @throws GRBException 
 	 */
-	public Pair<Integer, Double> solve() throws IOException, GRBException {
+	public static Pair<Integer, Double> solve(ArrayList<ArrayList<Integer>> cycles, boolean[][] matches, int n, ArrayList<Double> cycleValuesAll, ArrayList<Double> cycleValuesSol) throws IOException, GRBException {
 
 
 		Random r = new Random();
-		
+
 		GRBEnv env = new GRBEnv(true);
-		env.set(IntParam.OutputFlag, 0);
+		env.set(IntParam.OutputFlag, 1);
 		env.start();
 
 		GRBModel model = new GRBModel(env);
-		model.set(GRB.DoubleParam.TimeLimit, 3600.0);
+		model.set(GRB.DoubleParam.TimeLimit, 1800.0);
 		model.set(GRB.DoubleParam.PoolGap, 0.0);
 		model.set(GRB.IntParam.PoolSearchMode, 0);
 		int solNum = 1;
 		model.set(GRB.IntParam.PoolSolutions, solNum);
 		model.set(GRB.IntParam.Seed, r.nextInt(100));
 
+		
+		model.set(GRB.DoubleParam.Heuristics, 0.2);
+		
+        model.set(GRB.IntParam.MIPFocus, 1);
+        model.set(GRB.IntParam.SolutionLimit, Integer.MAX_VALUE);
+        model.set(GRB.DoubleParam.ImproveStartGap, Double.POSITIVE_INFINITY);
+        model.set(GRB.DoubleParam.ImproveStartTime, Double.POSITIVE_INFINITY);
+        model.set(GRB.DoubleParam.NoRelHeurTime, Double.POSITIVE_INFINITY);
+        model.set(GRB.DoubleParam.NoRelHeurWork, Double.POSITIVE_INFINITY);
+        model.set(GRB.IntParam.RINS, 1);
+		 
+
 		// create list of cycle variables
 		GRBVar[] z = new GRBVar[cycles.size()];
-		if(cycles.size()>24000000) {
-			return null;
-		}
+		
+		//if(cycles.size()>24000000) {
+		//	return null;
+		//}
+		
 		for(int c = 0; c<cycles.size(); c++) {
 			String listString = cycles.get(c).stream().map(Object::toString)
 					.collect(Collectors.joining(","));
@@ -110,10 +153,9 @@ public class CycleFormulation {
 		GRBModel relaxed = model.relax();
 		relaxed.optimize();
 		double gap = relaxed.get(GRB.DoubleAttr.ObjVal) - model.get(GRB.DoubleAttr.ObjVal);
-		
-		
+
 		//for multiple solutions
-		
+
 		int equiCounter = 1;
 		for(int i = 1; i<solNum; i++) {
 			model.set(GRB.IntParam.SolutionNumber, i);
@@ -122,22 +164,22 @@ public class CycleFormulation {
 			}
 		}
 
-		
-		System.out.println("Number of equivalent solutions: "+ equiCounter);
 
-		model.set(GRB.IntParam.SolutionNumber, r.nextInt(equiCounter));
+		System.out.println("Number of equivalent solutions: "+ equiCounter);
 		
-		
-		solutionCycles = new ArrayList<>();
-		for(int u = 0; u<z.length; u++) {
-			GRBVar var = z[u];
-			if(var.get(GRB.DoubleAttr.Xn) == 1) {
-				solutionCycles.add(u);
+		ArrayList<Double> cycleScores = CycleUtils.calculateCycles(matches, cycles);
+		cycleValuesAll.addAll(cycleScores);
+		ArrayList<Integer> solutionCycles = new ArrayList<>();
+		for(int s = 0; s<solNum; s++) {
+			model.set(GRB.IntParam.SolutionNumber, s);
+			for(int u = 0; u<z.length; u++) {
+				GRBVar var = z[u];
+				if(var.get(GRB.DoubleAttr.Xn) == 1) {
+					solutionCycles.add(u);
+					cycleValuesSol.add(cycleScores.get(u));
+				}
 			}
 		}
-		
-
-
 
 
 		System.out.println("Solved in "+T+" seconds");
@@ -145,9 +187,5 @@ public class CycleFormulation {
 		env.dispose();
 		Pair<Integer, Double> result = new Pair<Integer, Double>(T, gap);
 		return result;
-	}
-
-	public ArrayList<Integer> getSolutionCycles(){
-		return solutionCycles;
 	}
 }

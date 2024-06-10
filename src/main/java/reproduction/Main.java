@@ -2,7 +2,6 @@ package reproduction;
 
 import java.io.File;
 import java.io.IOException;
-import java.time.Instant;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -19,128 +18,77 @@ import org.jgrapht.graph.SimpleDirectedGraph;
 import com.gurobi.gurobi.GRBException;
 
 import data.XMLData;
-import util.CycleFinder;
-import util.PairValues;
+import heuristics.CyclePackingFormulation;
+import util.CycleUtils;
 
 public class Main {
 
 	public static void main(String[] args) throws IOException, GRBException {
 
-
+		int method = 0;
 		final int k = 4;
 		double T_average = 0;
 		double gapAverage = 0;
 		double cycleT_average = 0;
-		ArrayList<Double> cycleValuesAll = new ArrayList<>();
-		ArrayList<Double> cycleValuesSol = new ArrayList<>();
+
 		File folder = new File("src/main/resources/delorme");
 		File[] listOfFiles = folder.listFiles();
-		
-		int testSetSize = 10;
-		for(int u = 40; u<50; u++) {
-			File data = listOfFiles[u];
-			
-			System.out.println("["+LocalTime.now().truncatedTo(ChronoUnit.MINUTES).toString()+"] "+"Matching " + data.getName());
 
-			//ExcelReader dr = new ExcelReader(data);
-			//final boolean[][] matches = WMDReader.read(data);
-			//final boolean[][] matches = SimpleDataGeneration.generate(n, density);
-			//System.out.println("Simple data generated with n = "+n+" and a density of "+density);
-			
-			XMLData reader = new XMLData(data);
-			final boolean[][] matches = reader.getMatches();
-			int n = matches.length;
-			
-			double matchCount = 0;
-			for(boolean[] row : matches) {
-				for(boolean val : row) {
-					if(val) {
-						matchCount++;
-					}
-				}
+		int testSetSize = 10;
+		for(int u = 30; u<40; u++) {
+			File data = listOfFiles[u];
+
+			ArrayList<Double> cycleValuesAll = new ArrayList<>();
+
+			ArrayList<Double> cycleValuesSol = new ArrayList<>();
+			Pair<Integer, Double> result;
+			if(method == 0) {
+				result = CycleFormulation.run(data, k, cycleValuesAll, cycleValuesSol);
+
+			}
+			if(method == 1) {
+				result = EEFormulation.run(data, k);
 			}
 			
-			SimpleDirectedGraph<Integer, DefaultEdge> g = new SimpleDirectedGraph<>(DefaultEdge.class);
-
-			//add vertices
-			ArrayList<Integer> vertices = new ArrayList<>(matches.length);
-			for(int i = 0; i<matches.length; i++) {
-				vertices.add(i);
-				g.addVertex(vertices.get(i));
+			double max = Collections.max(cycleValuesAll);
+			double[] histogramAll = new double[20];
+			double[] histogramSol = new double[20];
+			
+			for(Double value : cycleValuesAll) {
+				int index = (int) Math.ceil((value/max)*20) -1;
+				histogramAll[index]++;;
+			}
+			for(Double value : cycleValuesSol) {
+				int index = (int) Math.floor((value/max)*20);
+				histogramSol[index]++;
+			}
+			
+			double[] fractions = new double[20];
+			double total = 0.0;
+			for(int i = 0; i<20; i++) {
+				if(histogramAll[i]>0) {
+					fractions[i] = (histogramSol[i]/1.0)/histogramAll[i];
+					total += fractions[i];
+				}
 				
 			}
-
-			//add edges
-			for(int i = 0; i<matches.length; i++) {
-				for(int j = 0; j<matches.length; j++) {
-					if(matches[i][j]) {
-						g.addEdge(vertices.get(i), vertices.get(j));
-					}
-				}
+			
+			for(int i = 0; i<20; i++) {
+				fractions[i] = Math.round((fractions[i])*1000)/10.0;
 			}
-			
-
-			//find cycles
-			long startTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
-			ArrayList<ArrayList<Integer>> cycles = CycleFinder.getCycles(g, k);
-			cycleT_average += TimeUnit.NANOSECONDS.toSeconds((System.nanoTime())) - startTime;
-			cycleValuesAll.addAll(PairValues.calculateCycles(matches, cycles, true));
-			
-			System.out.println(cycles.size() + " cycles found in " +(TimeUnit.NANOSECONDS.toSeconds((System.nanoTime()))
-					- startTime)+ " seconds for k = "+k);
-			double density = matchCount/(double) Math.pow(matches.length,2)*100/100;
-			System.out.println("Data has " +matches.length+ " matchable pairs with an average density of " + density);
-
-
-			//Pair<Integer, Double> result =  EEFormulation.solve(matches, k, cycles);
-			
-			CycleFormulation cf = new CycleFormulation(cycles, k, n);
-			Pair<Integer, Double> result = cf.solve();
-			if(result==null) {
-				System.out.println("too many cycles, aborting");
-				continue;
-			}
-			
-			ArrayList<ArrayList<Integer>> solutionCycles = new ArrayList<>();
-			for(Integer cycle : cf.getSolutionCycles()) {
-				solutionCycles.add(cycles.get(cycle));
-			}
-			cycleValuesSol.addAll(PairValues.calculateCycles(matches, solutionCycles, true));
-			
-			T_average += result.getFirst();
-			gapAverage += result.getSecond();
+			System.out.println(Arrays.toString(histogramAll));
+			System.out.println(Arrays.toString(histogramSol));
+			System.out.println(Arrays.toString(fractions)+ "\n");
 		}
+		
+		
+		
 		
 		//display statistics for all runs
 		System.out.println("\navg cycle T: "+((double) cycleT_average)/testSetSize);
 		System.out.println("avg T: "+((double) T_average)/testSetSize);
 		System.out.println("avg gap: "+ ((double) gapAverage)/testSetSize);
-		
-		
-		double max = Collections.max(cycleValuesAll);
-		
-		//assign cycle values to distribution buckets
-		double[] distrAll = new double[20];
-		for(double value : cycleValuesAll) {
-			distrAll[(int) Math.ceil((value/max)*(20))-1]++;
-		}
-		//standardize units
-		for(int i = 0; i<distrAll.length;i++) {
-			distrAll[i] = distrAll[i]/(double) cycleValuesAll.size();
-			distrAll[i] = Math.round(distrAll[i]*10000)/100.0;
-		}
-		System.out.println("\nAll cycles score distribution (in %):\n"+Arrays.toString(distrAll));
-		
-		double[] distrSol = new double[20];
-		for(double value : cycleValuesSol) {
-			distrSol[(int) Math.ceil((value/max)*(20))-1]++;
-		}
-		
-		for(int i = 0; i<distrSol.length;i++) {
-			distrSol[i] = distrSol[i]/(double) cycleValuesSol.size();
-			distrSol[i] = Math.round(distrSol[i]*10000)/100.0;
-		}
-		System.out.println("\nSolution cycles score distribution (in %):\n"+Arrays.toString(distrSol)+"\n");
+
 	}
 
 	public void connectivity(SimpleDirectedGraph<Integer, DefaultEdge> g) {
