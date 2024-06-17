@@ -4,11 +4,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 import java.util.Random;
-import java.util.TreeMap;
 import java.util.TreeSet;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -29,7 +26,7 @@ public class GreedyCycles {
 	private int 	runs = 0;
 	private TreeSet<ImmutablePair<ArrayList<Integer>, Double>> 	valueTreeBase;
 	private HashMap<ArrayList<Integer>, Integer> 				cycleIndices;
-
+	private ArrayList<ArrayList<Integer>> 	knownSolutions;
 
 	/**
 	 * Creates the TreeMap and assign cycles indices.
@@ -44,7 +41,7 @@ public class GreedyCycles {
 		n = cycles.size();
 		this.aggressiveness = aggressiveness;
 		this.randomSelection = randomSelection;
-		
+
 		//rank cycles and index
 		this.valueTreeBase = new TreeSet<>(byValue);
 		this.cycleIndices = new HashMap<>();
@@ -57,72 +54,8 @@ public class GreedyCycles {
 		while(valueTreeBase.size()>(int) cycles.size()*aggressiveness){
 			valueTreeBase.pollLast();
 		}
-	}
 
-	/**
-	 * Runs the algorithm.
-	 * @param aggressiveness The fraction of cycles to include (will be rounded).
-	 * @param cycles All possible cycles.
-	 * @param cycleValues The corresponding values of all possible cycles
-	 * @param randomness The number of cycles the next cycle is randomly selected from. 
-	 * @return An ArrayList with the indexes of the chosen cycles in the input list of cycles.
-	 */
-	public ArrayList<Integer> runFilter() {
-		runs++;
-		long startTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
-		ArrayList<Integer> result = new ArrayList<>((int) (aggressiveness*n));
-		Random r = new Random();
-
-		//copy the base tree
-		TreeSet<ImmutablePair<ArrayList<Integer>, Double>> valueTree = new TreeSet<ImmutablePair<ArrayList<Integer>, Double>>(valueTreeBase);
-
-		while(!valueTree.isEmpty()) {
-			//System.out.println(valueTree.size());
-			ArrayList<ImmutablePair<ArrayList<Integer>, Double>> selection = new ArrayList<>(randomSelection);
-
-			int selectionSize = valueTree.size()>=randomSelection ? randomSelection : valueTree.size();
-			for(int i = 0; i<selectionSize; i++) {
-				selection.add(valueTree.pollFirst());
-			}
-
-			ImmutablePair<ArrayList<Integer>, Double> selected = selection.get(r.nextInt(selectionSize));
-			result.add(cycleIndices.get(selected.getLeft()));
-			//System.out.println(selected.getRight());
-			ArrayList<ImmutablePair<ArrayList<Integer>, Double>> toRemove = new ArrayList<>();
-			filterSelection:
-				for(ImmutablePair<ArrayList<Integer>, Double> other : selection) {
-					for(Integer vertex : selected.getLeft()) {
-						if(other.getLeft().contains(vertex)) {
-							toRemove.add(other);
-							continue filterSelection;
-						}
-					}
-				}
-			selection.removeAll(toRemove);
-
-			//dont know what the optimal list size is here but i prefer using more memory over cpu time
-			toRemove = new ArrayList<>((int) 0.5*valueTree.size());
-			filterTree:
-				for(ImmutablePair<ArrayList<Integer>, Double> other : valueTree) {
-					for(Integer vertex : selected.getLeft()) {
-						if(other.getLeft().contains(vertex)) {
-							toRemove.add(other);
-							continue filterTree;
-						}
-					}
-				}
-			valueTree.removeAll(toRemove);
-
-			// return unused and unfiltered cycles back to the tree
-			for(ImmutablePair<ArrayList<Integer>, Double> leftOver : selection) {
-				valueTree.add(leftOver);
-			}
-		}
-
-		runTime += Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()) - startTime);
-
-		//System.out.println("Heuristic solution with value "+result.size());
-		return result;
+		knownSolutions = new ArrayList<>();
 	}
 
 	public ArrayList<Integer> runNoFilter() {
@@ -135,27 +68,51 @@ public class GreedyCycles {
 		//copy the base tree
 		TreeSet<ImmutablePair<ArrayList<Integer>, Double>> valueTree = new TreeSet<ImmutablePair<ArrayList<Integer>, Double>>(valueTreeBase);
 		HashSet<Integer> matchedNodes = new HashSet<>(v);
+		//if there are pairs to pick left
 		while(!valueTree.isEmpty()) {
-			//System.out.println(valueTree.size());
 			ArrayList<ImmutablePair<ArrayList<Integer>, Double>> selection = new ArrayList<>(randomSelection);
 
 			int selectionSize = valueTree.size()>=randomSelection ? randomSelection : valueTree.size();
 
 			selectionLoop:
-				while(selection.size() < selectionSize && valueTree.size() != 0) {
-					ImmutablePair<ArrayList<Integer>, Double> polled = valueTree.pollFirst();
-					for(Integer vertex : polled.getLeft()) {
-						if(matchedNodes.contains(vertex)) {
-							continue selectionLoop;
-						}
+			while(selection.size() < selectionSize && valueTree.size() != 0) {
+				ImmutablePair<ArrayList<Integer>, Double> polled = valueTree.pollFirst();
+				for(Integer vertex : polled.getLeft()) {
+					if(matchedNodes.contains(vertex)) {
+						continue selectionLoop;
 					}
-					selection.add(polled);
 				}
+				selection.add(polled);
+			}
 			if(selection.isEmpty()) {
+				knownSolutions.add(result);
 				break;
 			}
-			ImmutablePair<ArrayList<Integer>, Double> selected = selection.get(r.nextInt(selection.size()));
-			result.add(cycleIndices.get(selected.getLeft()));
+
+			ArrayList<ImmutablePair<ArrayList<Integer>, Double>> selectionCopy = new ArrayList<>(selection);
+			ImmutablePair<ArrayList<Integer>, Double> selected = null;
+
+			while(!selectionCopy.isEmpty()) {
+
+				selected = selectionCopy.get(r.nextInt(selectionCopy.size()));
+				selectionCopy.remove(selected);
+				result.add(cycleIndices.get(selected.getLeft()));
+				if(knownSolutions.contains(result)) {
+					System.out.println("known solution encountered");
+					result.remove(cycleIndices.get(selected.getLeft()));
+					selected = null;
+				}
+				else {
+					break;
+				}
+			}
+			if(selected == null) {
+				System.out.println("branch cut");
+				knownSolutions.add(result);
+				continue;
+			}
+
+			//result.add(cycleIndices.get(selected.getLeft()));
 			matchedNodes.addAll(selected.getLeft());
 
 			ArrayList<ImmutablePair<ArrayList<Integer>, Double>> toRemove = new ArrayList<>();
@@ -178,15 +135,17 @@ public class GreedyCycles {
 
 		runTime += Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()) - startTime);
 
-		//System.out.println("Tree FilterHeuristic solution with value "+result.size());
+		knownSolutions.add(result);
 		return result;
 	}
 
 	public Comparator<ImmutablePair<ArrayList<Integer>, Double>> byValue = 
-			(ImmutablePair<ArrayList<Integer>, Double> p1, ImmutablePair<ArrayList<Integer>, Double> p2)
-			-> Double.compare(p1.getRight(), p2.getRight());
+			((ImmutablePair<ArrayList<Integer>, Double> p1, ImmutablePair<ArrayList<Integer>, Double> p2)
+					-> Double.compare(p1.getRight(), p2.getRight()));
 
 	public double getAverageRunTime() {
 		return (double) runTime/(double) runs;
 	}
+
+
 }

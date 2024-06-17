@@ -1,7 +1,6 @@
 package reproduction;
 
 import java.io.File;
-import java.io.IOException;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -15,17 +14,18 @@ import org.jgrapht.alg.util.Pair;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.SimpleDirectedGraph;
 
-import com.gurobi.gurobi.GRBException;
-
 import data.XMLData;
 import heuristics.CyclePackingFormulation;
 import util.CycleUtils;
+import util.TimedPrintStream;
 
 public class Main {
 
-	public static void main(String[] args) throws IOException, GRBException {
+	public static void main(String[] args) throws Exception {
 
-		int method = 0;
+		System.setOut(new TimedPrintStream(System.out));
+		
+		int method = 1;
 		final int k = 4;
 		double T_average = 0;
 		double gapAverage = 0;
@@ -35,7 +35,7 @@ public class Main {
 		File[] listOfFiles = folder.listFiles();
 
 		int testSetSize = 10;
-		for(int u = 30; u<40; u++) {
+		for(int u = 60; u<70; u++) {
 			File data = listOfFiles[u];
 
 			ArrayList<Double> cycleValuesAll = new ArrayList<>();
@@ -44,41 +44,43 @@ public class Main {
 			Pair<Integer, Double> result;
 			if(method == 0) {
 				result = CycleFormulation.run(data, k, cycleValuesAll, cycleValuesSol);
+				
+				double max = Collections.max(cycleValuesAll);
+				double[] histogramAll = new double[20];
+				double[] histogramSol = new double[20];
+				
+				for(Double value : cycleValuesAll) {
+					int index = (int) Math.ceil((value/max)*20) -1;
+					histogramAll[index]++;;
+				}
+				for(Double value : cycleValuesSol) {
+					int index = (int) Math.floor((value/max)*20);
+					histogramSol[index]++;
+				}
+				
+				double[] fractions = new double[20];
+				double total = 0.0;
+				for(int i = 0; i<20; i++) {
+					if(histogramAll[i]>0) {
+						fractions[i] = (histogramSol[i]/1.0)/histogramAll[i];
+						total += fractions[i];
+					}
+					
+				}
+				
+				for(int i = 0; i<20; i++) {
+					fractions[i] = Math.round((fractions[i])*1000)/10.0;
+				}
+				System.out.println(Arrays.toString(histogramAll));
+				System.out.println(Arrays.toString(histogramSol));
+				System.out.println(Arrays.toString(fractions)+ "\n");
 
 			}
 			if(method == 1) {
 				result = EEFormulation.run(data, k);
 			}
 			
-			double max = Collections.max(cycleValuesAll);
-			double[] histogramAll = new double[20];
-			double[] histogramSol = new double[20];
 			
-			for(Double value : cycleValuesAll) {
-				int index = (int) Math.ceil((value/max)*20) -1;
-				histogramAll[index]++;;
-			}
-			for(Double value : cycleValuesSol) {
-				int index = (int) Math.floor((value/max)*20);
-				histogramSol[index]++;
-			}
-			
-			double[] fractions = new double[20];
-			double total = 0.0;
-			for(int i = 0; i<20; i++) {
-				if(histogramAll[i]>0) {
-					fractions[i] = (histogramSol[i]/1.0)/histogramAll[i];
-					total += fractions[i];
-				}
-				
-			}
-			
-			for(int i = 0; i<20; i++) {
-				fractions[i] = Math.round((fractions[i])*1000)/10.0;
-			}
-			System.out.println(Arrays.toString(histogramAll));
-			System.out.println(Arrays.toString(histogramSol));
-			System.out.println(Arrays.toString(fractions)+ "\n");
 		}
 		
 		

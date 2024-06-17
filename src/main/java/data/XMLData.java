@@ -2,9 +2,7 @@ package data;
 
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -17,6 +15,8 @@ import javax.xml.stream.events.XMLEvent;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+
+import util.CycleUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -93,6 +93,10 @@ public class XMLData {
 				matches[ids.get(left)][ids.get(right)] = true;
 			}
 		}
+		
+		// If a pair can only donate to or receive from a pair that cant be matched
+		// it will be removed by this method. This usually removes 1 or 2 pairs.
+		matches = CycleUtils.reduceMatchMatrix(matches);
 	}
 
 	public boolean[][] getMatches() {
