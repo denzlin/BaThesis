@@ -22,6 +22,8 @@ import com.gurobi.gurobi.GRBVar;
 import com.gurobi.gurobi.GRB.DoubleAttr;
 import com.gurobi.gurobi.GRB.IntParam;
 
+import data.SimpleDataGeneration;
+import data.WMDReader;
 import data.XMLData;
 import util.CycleUtils;
 
@@ -37,9 +39,9 @@ public class CycleFormulation {
 		//final boolean[][] matches = WMDReader.read(data);
 		//final boolean[][] matches = SimpleDataGeneration.generate(n, density);
 		//System.out.println("Simple data generated with n = "+n+" and a density of "+density);
-
-		XMLData reader = new XMLData(data);
-		final boolean[][] matches = reader.getMatches();
+		final boolean[][] matches = SimpleDataGeneration.generate(128, 0.7);
+		//XMLData reader = new XMLData(data);
+		//final boolean[][] matches = reader.getMatches();
 		int n = matches.length;
 
 		double matchCount = 0;
@@ -50,15 +52,16 @@ public class CycleFormulation {
 				}
 			}
 		}
-
+		long startTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
 		ArrayList<ArrayList<Integer>> cycles = CycleUtils.getCycles(matches, k);
-
+		Integer T = Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()) - startTime);
+		System.out.println(cycles.size()+" cycles found in "+T+ "s");
 		double density = matchCount/(double) Math.pow(matches.length,2)*100/100;
 		System.out.println("Data has " +matches.length+ " matchable pairs with an average density of " + density);
 
-
+		//first is solvintg time, second is cycle time
 		Pair<Integer, Double> result = solve(cycles, matches, n, cycleValuesAll, cycleValuesSol);
-
+		result.setSecond((double) T);
 
 		return result;
 	}
@@ -72,6 +75,7 @@ public class CycleFormulation {
 	public static Pair<Integer, Double> solve(ArrayList<ArrayList<Integer>> cycles, boolean[][] matches, int n, ArrayList<Double> cycleValuesAll, ArrayList<Double> cycleValuesSol) throws IOException, GRBException {
 
 
+		int solNum = 100;
 		Random r = new Random();
 
 		GRBEnv env = new GRBEnv(true);
@@ -80,13 +84,16 @@ public class CycleFormulation {
 
 		GRBModel model = new GRBModel(env);
 		model.set(GRB.DoubleParam.TimeLimit, 1800.0);
-		model.set(GRB.DoubleParam.PoolGap, 0.0);
-		model.set(GRB.IntParam.PoolSearchMode, 0);
-		int solNum = 1;
+		
+		model.set(GRB.DoubleParam.PoolGap, 0.5);
+		model.set(GRB.IntParam.PoolSearchMode, 2);
+
 		model.set(GRB.IntParam.PoolSolutions, solNum);
 		model.set(GRB.IntParam.Seed, r.nextInt(100));
 
 		
+		/*
+		 
 		model.set(GRB.DoubleParam.Heuristics, 1.0);
 		
         model.set(GRB.IntParam.MIPFocus, 2);
@@ -97,6 +104,7 @@ public class CycleFormulation {
         model.set(GRB.DoubleParam.NoRelHeurWork, Double.POSITIVE_INFINITY);
         model.set(GRB.IntParam.RINS, 1);
 		
+        */
 
 		// create list of cycle variables
 		GRBVar[] z = new GRBVar[cycles.size()];
@@ -155,6 +163,8 @@ public class CycleFormulation {
 
 		//for multiple solutions
 
+		
+
 		int equiCounter = 1;
 		for(int i = 1; i<solNum; i++) {
 			model.set(GRB.IntParam.SolutionNumber, i);
@@ -169,7 +179,7 @@ public class CycleFormulation {
 		ArrayList<Double> cycleScores = CycleUtils.calculateCycles(matches, cycles);
 		cycleValuesAll.addAll(cycleScores);
 		ArrayList<Integer> solutionCycles = new ArrayList<>();
-		for(int s = 0; s<solNum; s++) {
+		for(int s = 0; s<equiCounter; s++) {
 			model.set(GRB.IntParam.SolutionNumber, s);
 			for(int u = 0; u<z.length; u++) {
 				GRBVar var = z[u];
@@ -179,7 +189,9 @@ public class CycleFormulation {
 				}
 			}
 		}
-
+		
+		
+		/*
 		int[] sizeCounterSol = new int[3];
 		int[] sizeCounterAll = new int[3];
 		
@@ -204,6 +216,7 @@ public class CycleFormulation {
 		System.out.println("Average cycle score sol: "+ Arrays.toString(scoreAvgSol));
 		System.out.println("Average cycle score all: "+ Arrays.toString(scoreAvgAll));
 		
+		*/
 		System.out.println("Solved in "+T+" seconds");
 		System.out.println("Cycle -> Pairs matched: " + model.get(GRB.DoubleAttr.ObjVal) + " out of " + n + ". " +emptyCounter+ " pairs were not in any cycle");
 		env.dispose();
@@ -211,7 +224,7 @@ public class CycleFormulation {
 		return result;
 	}
 	
-	public static ArrayList<Integer> solveMinimal(ArrayList<ArrayList<Integer>> cycles, boolean[][] matches, ArrayList<ArrayList<Integer>> initialSolution) throws IOException, GRBException {
+	public static Integer solveMinimal(ArrayList<ArrayList<Integer>> cycles, boolean[][] matches, ArrayList<ArrayList<Integer>> initialSolution) throws IOException, GRBException {
 
 		int n = matches.length;
 		
@@ -225,11 +238,14 @@ public class CycleFormulation {
 		model.set(GRB.DoubleParam.TimeLimit, 1800.0);
 		model.set(GRB.IntParam.Seed, r.nextInt(100));
 	
+		/*
+		 * 
 		model.set(GRB.DoubleParam.Heuristics, 0.0);
         model.set(GRB.DoubleParam.NoRelHeurTime, 0.0);
         model.set(GRB.IntParam.DegenMoves, 0);
         model.set(GRB.IntParam.MIPFocus, 1);
-        
+        */
+		
         //turn initialSolution into hashset for faster lookup
         HashSet<ArrayList<Integer>> initialCycles = new HashSet<>(initialSolution.size());
         initialCycles.addAll(initialSolution);
@@ -278,7 +294,9 @@ public class CycleFormulation {
 			}
 		}
 
+		long startTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
 		model.optimize();
+		Integer T = Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()) - startTime);
 		int objVal = 0;
 		ArrayList<Integer> result = new ArrayList<>(cycles.size());
 		for(int c = 0; c<cycles.size(); c++) {
@@ -291,6 +309,6 @@ public class CycleFormulation {
 		System.out.println("linear relaxation bound was: "+model.get(GRB.DoubleAttr.ObjBound));
 		model.dispose();
 		env.dispose();
-		return result;
+		return T;
 	}
 }

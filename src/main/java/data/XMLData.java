@@ -2,6 +2,7 @@ package data;
 
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -94,9 +95,8 @@ public class XMLData {
 			}
 		}
 		
-		// If a pair can only donate to or receive from a pair that cant be matched
-		// it will be removed by this method. This usually removes 1 or 2 pairs.
 		matches = CycleUtils.reduceMatchMatrix(matches);
+		matches = CycleUtils.orderMatrixByDegree(matches, 0);
 	}
 
 	public boolean[][] getMatches() {

@@ -20,6 +20,7 @@ import com.gurobi.gurobi.GRB;
 import com.gurobi.gurobi.GRB.DoubleAttr;
 import com.gurobi.gurobi.GRB.IntParam;
 
+import data.SimpleDataGeneration;
 import data.XMLData;
 import heuristics.CyclePackingFormulation;
 import heuristics.JumpStart;
@@ -36,11 +37,11 @@ public class EEFormulation {
 
 		//ExcelReader dr = new ExcelReader(data);
 		//final boolean[][] matches = WMDReader.read(data);
-		//final boolean[][] matches = SimpleDataGeneration.generate(n, density);
+		final boolean[][] matches = SimpleDataGeneration.generate(128, 0.7);
 		//System.out.println("Simple data generated with n = "+n+" and a density of "+density);
 
-		XMLData reader = new XMLData(data);
-		final boolean[][] matches = reader.getMatches();
+		//XMLData reader = new XMLData(data);
+		//final boolean[][] matches = reader.getMatches();
 
 		double matchCount = 0;
 		for(boolean[] row : matches) {
@@ -83,11 +84,14 @@ public class EEFormulation {
 
 		GRBModel model = new GRBModel(env);
 
+		/*
 		model.set(GRB.DoubleParam.Heuristics, 0.0);
         model.set(GRB.DoubleParam.NoRelHeurTime, 0.0);
         model.set(GRB.IntParam.DegenMoves, 0);
         model.set(GRB.IntParam.MIPFocus, 1);
-        
+
+		*/
+		
         /*
         model.set(GRB.IntParam.SolutionLimit, Integer.MAX_VALUE);
         model.set(GRB.DoubleParam.ImproveStartGap, Double.POSITIVE_INFINITY);
@@ -105,19 +109,22 @@ public class EEFormulation {
 		System.out.println(x.size()+" vars created in "+(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime())-constructStart) +" seconds" );
 		
 		//set initial solution
-		for(ArrayList<Integer> cycle : initialSolution) {
-			int min = Collections.min(cycle);
-			
-			for(int i = 0; i<cycle.size()-1;i++) {
-				int row = verticesPerCopy.get(min).get(cycle.get(i));
-				int col = verticesPerCopy.get(min).get(cycle.get(i+1));
+		if(initialSolution != null) {
+			for(ArrayList<Integer> cycle : initialSolution) {
+				int min = Collections.min(cycle);
 				
+				for(int i = 0; i<cycle.size()-1;i++) {
+					int row = verticesPerCopy.get(min).get(cycle.get(i));
+					int col = verticesPerCopy.get(min).get(cycle.get(i+1));
+					
+					x.get(min)[row][col].set(DoubleAttr.Start, 1.0);
+				}
+				int row = verticesPerCopy.get(min).get(cycle.get(cycle.size()-1));
+				int col = verticesPerCopy.get(min).get(cycle.get(0));
 				x.get(min)[row][col].set(DoubleAttr.Start, 1.0);
 			}
-			int row = verticesPerCopy.get(min).get(cycle.get(cycle.size()-1));
-			int col = verticesPerCopy.get(min).get(cycle.get(0));
-			x.get(min)[row][col].set(DoubleAttr.Start, 1.0);
 		}
+		
 		
 		//create objective
 		model.set(GRB.IntAttr.ModelSense, -1);
@@ -190,18 +197,15 @@ public class EEFormulation {
 		model.optimize();
 		Integer T = Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()) - startTime);
 		
+		/*
 		GRBVar[] vars = model.getVars();
 		for(GRBVar var : vars) {
 			if(var.get(GRB.DoubleAttr.X) == 1) {
 				//System.out.println(var.get(GRB.StringAttr.VarName));
 			}
 		}
-
-		switch(model.get(GRB.IntAttr.Status)){
-		case GRB.Status.OPTIMAL: 	System.out.println("Solved Optimally");
-		case GRB.Status.TIME_LIMIT: System.out.println("Time limit reached");
-		case GRB.Status.SUBOPTIMAL:	System.out.println("Solved suboptimally");
-		}
+		*/
+		
 		System.out.println("EE -> Pairs matched: " + model.get(GRB.DoubleAttr.ObjVal) + " out of " + n + "");
 		System.out.println("linear relaxation bound was: "+model.get(GRB.DoubleAttr.ObjBound));
 		model.dispose();

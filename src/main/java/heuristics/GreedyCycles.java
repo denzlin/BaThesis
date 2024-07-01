@@ -55,7 +55,7 @@ public class GreedyCycles {
 			valueTreeBase.pollLast();
 		}
 
-		knownSolutions = new ArrayList<>();
+		knownSolutions = new ArrayList<>(50000);
 	}
 
 	public ArrayList<Integer> runNoFilter() {
@@ -84,10 +84,12 @@ public class GreedyCycles {
 				}
 				selection.add(polled);
 			}
+			
 			if(selection.isEmpty()) {
 				knownSolutions.add(result);
 				break;
 			}
+			
 
 			ArrayList<ImmutablePair<ArrayList<Integer>, Double>> selectionCopy = new ArrayList<>(selection);
 			ImmutablePair<ArrayList<Integer>, Double> selected = null;
@@ -98,7 +100,7 @@ public class GreedyCycles {
 				selectionCopy.remove(selected);
 				result.add(cycleIndices.get(selected.getLeft()));
 				if(knownSolutions.contains(result)) {
-					System.out.println("known solution encountered");
+					//System.out.println("known solution encountered");
 					result.remove(cycleIndices.get(selected.getLeft()));
 					selected = null;
 				}
@@ -106,11 +108,13 @@ public class GreedyCycles {
 					break;
 				}
 			}
+			
 			if(selected == null) {
-				System.out.println("branch cut");
+				//System.out.println("branch cut, "+knownSolutions.size()+" solutions added, tree has"+ valueTree.size()+" cycles left");
 				knownSolutions.add(result);
 				continue;
 			}
+			
 
 			//result.add(cycleIndices.get(selected.getLeft()));
 			matchedNodes.addAll(selected.getLeft());

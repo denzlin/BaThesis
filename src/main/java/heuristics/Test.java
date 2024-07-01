@@ -4,7 +4,10 @@ import java.io.File;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
 
 import org.jgrapht.alg.util.Pair;
 
@@ -18,43 +21,58 @@ import util.TimedPrintStream;
 
 public class Test {
 
-	public static void main(String[] args) throws Exception {
-
-		System.setOut(new TimedPrintStream(System.out));
-		
+	public static void main(String[] args) throws Exception {		
 		final int k = 4;
 
 		File folder = new File("src/main/resources/delorme");
 		File[] listOfFiles = folder.listFiles();
 
-		for(int u = 50; u<60; u++) {
+		double avg = 0.0;
+		for(int u = 30; u<40; u++) {
 
 			File data = listOfFiles[u];
-			System.out.println("Data set read: " + data.getName());
-
-			//ExcelReader dr = new ExcelReader(data);
-			//final boolean[][] matches = WMDReader.read(data);
-			//final boolean[][] matches = SimpleDataGeneration.generate(n, density);
-
+			System.out.println("Matching " + data.getName()+ " for k = "+k+" with matheuristic using EE");
+			
 			XMLData reader = new XMLData(data);
 			final boolean[][] matches = reader.getMatches();
+			int n = matches.length;
+			int startTime = Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()));
+			EEFormulation.solve(matches, 4, null, 10000, 1800);
+			/*
+			ArrayList<ArrayList<Integer>> cycles = CycleUtils.getCycles(matches, k);
+			CycleFormulation.solveMinimal(cycles, matches, new ArrayList<>());
+			*/
+			avg += Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()))-startTime;
+	
+		}
+		System.out.println("avg solve time : "+avg/10.0);
+		
+		/*
+		double max = Collections.max(cycleValuesAll);
 
-			double matchCount = 0;
-			for(boolean[] row : matches) {
-				for(boolean val : row) {
-					if(val) {
-						matchCount++;
-					}
-				}
-			}
+		//assign cycle values to distribution buckets
+		double[] distrAll = new double[50];
+		for(double value : cycleValuesAll) {
+			distrAll[(int) Math.ceil((value/max)*(50))-1]++;
+		}
+		//standardize units
+		for(int i = 0; i<distrAll.length;i++) {
+			distrAll[i] = distrAll[i]/(double) cycleValuesAll.size();
+			distrAll[i] = Math.round(distrAll[i]*1000)/10.0;
+		}
+		System.out.println("\nAll cycles score distribution (in %):\n"+Arrays.toString(distrAll));
 
-			double density = matchCount/(double) Math.pow(matches.length,2)*100/100;
-			System.out.println("Data has " +matches.length+ " matchable pairs with an average density of " + density);
-
-			tabuTest(matches, k); 
-			
+		double[] distrSol = new double[50];
+		for(double value : cycleValuesSol) {
+			distrSol[(int) Math.ceil((value/max)*(50))-1]++;
 		}
 
+		for(int i = 0; i<distrSol.length;i++) {
+			distrSol[i] = distrSol[i]/(double) cycleValuesSol.size();
+			distrSol[i] = Math.round(distrSol[i]*1000)/10.0;
+		}
+		System.out.println("\nSolution cycles score distribution (in %):\n"+Arrays.toString(distrSol)+"\n");
+		*/
 	}
 
 	public static void tabuTest(boolean[][] matches, int k) throws Exception {

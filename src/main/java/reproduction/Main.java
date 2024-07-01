@@ -25,26 +25,27 @@ public class Main {
 
 		System.setOut(new TimedPrintStream(System.out));
 		
-		int method = 1;
-		final int k = 4;
+		int method = 0;
+		final int k = 5;
 		double T_average = 0;
-		double gapAverage = 0;
 		double cycleT_average = 0;
 
-		File folder = new File("src/main/resources/delorme");
+		File folder = new File("src/main/resources/preflib");
 		File[] listOfFiles = folder.listFiles();
 
-		int testSetSize = 10;
-		for(int u = 60; u<70; u++) {
+		int testSetSize = 5;
+		for(int u = 50; u<60; u++) {
 			File data = listOfFiles[u];
 
 			ArrayList<Double> cycleValuesAll = new ArrayList<>();
 
 			ArrayList<Double> cycleValuesSol = new ArrayList<>();
-			Pair<Integer, Double> result;
+			Pair<Integer, Double> result = null;
 			if(method == 0) {
 				result = CycleFormulation.run(data, k, cycleValuesAll, cycleValuesSol);
 				
+				//for distributions
+				/*
 				double max = Collections.max(cycleValuesAll);
 				double[] histogramAll = new double[20];
 				double[] histogramSol = new double[20];
@@ -74,35 +75,22 @@ public class Main {
 				System.out.println(Arrays.toString(histogramAll));
 				System.out.println(Arrays.toString(histogramSol));
 				System.out.println(Arrays.toString(fractions)+ "\n");
+				*/
 
 			}
 			if(method == 1) {
-				result = EEFormulation.run(data, k);
+				boolean[][] matches = (new XMLData(data)).getMatches();
+				result = EEFormulation.solve(matches, k, new ArrayList<>(), 10000, 1800);
+				
 			}
-			
-			
+			T_average += result.getFirst();
+			cycleT_average += result.getSecond();
 		}
-		
-		
-		
 		
 		//display statistics for all runs
-		System.out.println("\navg cycle T: "+((double) cycleT_average)/testSetSize);
+		System.out.println("avg cycle T: "+((double) cycleT_average)/testSetSize);
 		System.out.println("avg T: "+((double) T_average)/testSetSize);
-		System.out.println("avg gap: "+ ((double) gapAverage)/testSetSize);
 
-	}
-
-	public void connectivity(SimpleDirectedGraph<Integer, DefaultEdge> g) {
-		GabowStrongConnectivityInspector<Integer, DefaultEdge> insp = new GabowStrongConnectivityInspector<>(g);
-		if(!insp.isStronglyConnected()) {
-			System.out.println("Graph not strongly connected, analysing...");
-			for(Set<Integer> set : insp.stronglyConnectedSets()) {
-				System.out.println("set size: "+ set.size());
-			}
-		} else {
-			System.out.println("graph is strongly connected");
-		}
 	}
 }
 

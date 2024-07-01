@@ -3,9 +3,13 @@ package heuristics;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
 
+import data.WMDReader;
 import data.XMLData;
+import reproduction.CycleFormulation;
 import reproduction.EEFormulation;
+import util.CycleUtils;
 import util.TimedPrintStream;
 
 public class MainResults {
@@ -24,14 +28,17 @@ public class MainResults {
 		int k				= 4;
 		int heuristicTime 	= 1800;
 		int solverTime 		= 1800;
-		
-		for(int u = 87; u<90; u++) {
+		int[] opts = new int[] {754,	727,	718,	807,	755,	788,	766,	810,	752,	749};
+
+		for(int u = 50; u<60; u++) {
 			File data = listOfFiles[u];
 			System.out.println("\n");
 			System.out.println("Matching " + data.getName()+ " for k = "+k+" with matheuristic using EE");
+			
 			XMLData reader = new XMLData(data);
 			final boolean[][] matches = reader.getMatches();
-
+			
+			//final boolean[][] matches = WMDReader.read(data);
 			double matchCount = 0;
 			for(boolean[] row : matches) {
 				for(boolean val : row) {
@@ -40,32 +47,37 @@ public class MainResults {
 					}
 				}
 			}
-			int UB = CyclePackingFormulation.solve(matches);
 			
+			int UB = CyclePackingFormulation.solve(matches);
+			UB = opts[u-50];
 			double density = matchCount/(double) Math.pow(matches.length,2)*100/100;
 			System.out.println("Data has " +matches.length+ " matchable pairs with an average density of " + density);
 			
 			System.out.println("Starting Tabu local search");
 
+			
 			HashSet<ArrayList<Integer>> initialSolution = JumpStart.getJumpStart(matches, k);
 			
-			//CyclePackingFormulation.upperBoundFromPacking(CyclePackingFormulation.solveWithSolution(matches), k);
 			TabuLocalSearch tls = new TabuLocalSearch(matches, initialSolution, k);
 			tls.run(heuristicTime, UB);
 			System.out.println("final heuristic objective: "+tls.getBestObj());
 			
-			//System.out.println("Solving relaxation without initial solution");
-			//EEFormulation.solveRelaxation(matches, k, new ArrayList<ArrayList<Integer>>(), solverTime);
-			//EEFormulation.solveRelaxation(matches, k, tls.getSolutionCycles(), solverTime);
 			
-			EEFormulation.solve(matches, k, tls.getSolutionCycles(), UB, solverTime);
+			//System.out.println("EE time taken: " +EEFormulation.solve(matches, k, tls.getSolutionCycles(), UB, solverTime).getFirst()); 
 			
-			//System.out.println("EE done, starting Cycle formulation");
-			//int startTime = (int) TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
-			//ArrayList<ArrayList<Integer>> cycles = CycleUtils.getCycles(matches, k);
+			/*
+			int startTime = (int) TimeUnit.NANOSECONDS.toSeconds(System.nanoTime());
 			
-			//System.out.println("Cycles found in "+ Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()) - startTime) + "s");
-			//CycleFormulation.solveMinimal(cycles, matches, tls.getSolutionCycles());
+			ArrayList<ArrayList<Integer>> cycles = CycleUtils.getCycles(matches, k);
+			if(cycles.size() > 40000000) {
+				System.out.println("too many cycles, aborting");
+				continue;
+			}
+			System.out.println(cycles.size()+" cycles found");
+			CycleFormulation.solveMinimal(cycles, matches, tls.getSolutionCycles());
+			System.out.println("Cycles and Cycle formulation in "+ Math.toIntExact(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime()) - startTime)+"s");
+			*/
 		}
+
 	}
 }

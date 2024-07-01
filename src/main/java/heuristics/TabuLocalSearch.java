@@ -51,7 +51,7 @@ public class TabuLocalSearch {
 			initialObj += c.size();
 		}
 		this.bestObj = initialObj;
-		
+
 		vertices = new HashSet<>(matches.length);
 
 		for(int i = 0; i<matches.length; i++) {
@@ -75,10 +75,10 @@ public class TabuLocalSearch {
 	public void run(int runTime, int UB) throws Exception {
 		System.out.println("Running Local Search matheuristic for at most "+runTime+" seconds");
 		int TABU_SIZE = 1;
-		int SAMPLE = 0;
+		int SAMPLE = 5;
 		int solNumILP = 1;
 		Random r = new Random();
-		
+
 		HashSet<TreeSet<ImmutablePair<ArrayList<Integer>, Double>>> tabuList = new HashSet<>(50);
 		//this is a monstrous variable and i apologize
 		LinkedList<ImmutablePair<TreeSet<ImmutablePair<ArrayList<Integer>, Double>>, Integer>> tabuAges = new LinkedList<>();
@@ -86,7 +86,7 @@ public class TabuLocalSearch {
 		GRBEnv env = new GRBEnv(true);
 		env.set(IntParam.OutputFlag, 0);
 		env.start();
-		
+
 		CycleComparator cc = new CycleComparator();
 		TreeSet<ImmutablePair<ArrayList<Integer>, Double>> previousSolution = new TreeSet<>(cc);
 
@@ -105,22 +105,78 @@ public class TabuLocalSearch {
 		ArrayList<Integer> improveValues = new ArrayList<>(matches.length/2);
 		improveMoments.add(0);
 		improveValues.add(bestObj);
-		
+
 		Comparator<TreeSet<ImmutablePair<ArrayList<Integer>, Double>>> solComp = new SolutionComparator();
 
 		//loop
 		while(Instant.now().getEpochSecond() < startSecond + runTime) {
-			if(iter==1) {
-				SAMPLE = 5;
+			//for the first iteration
+			if(iter == 0) {
+				ArrayList<ImmutablePair<ArrayList<Integer>, Double>> cycleList = new ArrayList<>(previousSolution.size());
+				HashSet<Integer> currentVertices = new HashSet<>(matches.length);
+				HashSet<Integer> freeVertices = new HashSet<>(matches.length);
+
+				for(ImmutablePair<ArrayList<Integer>,Double> c : previousSolution) {
+					for(Integer i : c.getLeft()) {
+						currentVertices.add(i);
+					}
+					cycleList.add(c);
+				}
+				for(int v : vertices) {
+					if(!currentVertices.contains(v)) {
+						freeVertices.add(v);
+					}
+				}
+				HashSet<HashSet<ArrayList<Integer>>> subSolutions = findSubSolutions(freeVertices, solNumILP, env);
+				HashSet<ArrayList<Integer>> sub = new HashSet<>();
+				//loop over subsolutions but in this case there is only one
+				for(HashSet<ArrayList<Integer>> sol : subSolutions) {
+					sub = sol;
+				}
+				TreeSet<ImmutablePair<ArrayList<Integer>, Double>> tentative = new TreeSet<>(previousSolution);
+
+				//add cycles from subsolution
+				ArrayList<ImmutablePair<ArrayList<Integer>, Double>> toAdd = new ArrayList<>();
+				for(ArrayList<Integer> c : sub) {
+					toAdd.add(new ImmutablePair<ArrayList<Integer>, Double>(c, CycleUtils.calculateCycle(matches, c, pairValues)));
+				}
+				tentative.addAll(toAdd);
+
+				//set as new best and current solution
+				previousSolution = tentative;
+				int objVal = 0;
+				for(ImmutablePair<ArrayList<Integer>, Double> p : tentative) {
+					objVal += p.getLeft().size();
+				}
+				//System.out.println("best found: " + objVal + " in "+neighbours.size()+ " neighbours");
+				if(objVal>bestObj) {
+					bestObj = objVal;
+					bestSolution = new TreeSet<>(tentative);
+					if(bestObj>= UB-5) {
+						System.out.println("("+(Instant.now().getEpochSecond()-startSecond)+ "s) Nearing upper bound: best obj improved to: "+bestObj+" and UB is "+ UB);
+					}
+					//System.out.println("(" +(Instant.now().getEpochSecond()-startSecond)+ "s) best obj improved to: "+bestObj);
+					improveMoments.add((int) (Instant.now().getEpochSecond()-startSecond));
+					improveValues.add(bestObj);
+					if(bestObj == UB) {
+						System.out.println("Upper bound reached!");
+						System.out.println("Improvements:");
+						System.out.println(Arrays.toString(improveMoments.toArray()));
+						System.out.println(Arrays.toString(improveValues.toArray()));
+						return;
+					}
+					improveTime = 0;
+				}
+				//continue to next iteration
+				iter++;
+				continue;
 			}
-			//System.out.println("current solution: ");
-			//for(ImmutablePair<ArrayList<Integer>, Double> pair : previousSolution) {
-			//System.out.print("("+Arrays.toString(pair.getLeft().toArray())+", "+pair.getRight()+"] ");
-			//}
+			
+			
+			//afterwards
 			if(tabuList.size()>TABU_SIZE) {
 				tabuList.remove(tabuAges.pollFirst().getLeft());
 			}
-			//System.out.println("(" +(Instant.now().getEpochSecond()-startSecond)+ "s) new iteration");
 			TreeSet<TreeSet<ImmutablePair<ArrayList<Integer>, Double>>> neighbours = new TreeSet<>(solComp);
 
 			ArrayList<ImmutablePair<ArrayList<Integer>, Double>> cycleList = new ArrayList<>(previousSolution.size());
@@ -139,6 +195,7 @@ public class TabuLocalSearch {
 				}
 			}
 
+			HashSet<HashSet<Integer>> triedSamples = new HashSet<>(cycleList.size());
 			for(ImmutablePair<ArrayList<Integer>, Double> pair : previousSolution) {
 				ArrayList<ImmutablePair<ArrayList<Integer>, Double>> pairsToRemove = new ArrayList<>(SAMPLE);
 				pairsToRemove.add(pair);
@@ -148,6 +205,7 @@ public class TabuLocalSearch {
 						pairsToRemove.add(newPair);
 					}
 				}
+
 				TreeSet<ImmutablePair<ArrayList<Integer>, Double>> currentSolution = new TreeSet<>(cc);
 				currentSolution.addAll(previousSolution);
 				currentSolution.removeAll(pairsToRemove);
@@ -160,41 +218,43 @@ public class TabuLocalSearch {
 
 				sampledVertices.addAll(freeVertices);
 
-				//get sub-solutions
-				HashSet<HashSet<ArrayList<Integer>>> subSolutions = findSubSolutions(sampledVertices, solNumILP, env);
-				//System.out.println(subSolutions.size()+ " subsolutions found with "+ sampledVertices.size()+" free vertices");
+				if(!triedSamples.contains(sampledVertices)){
+					triedSamples.add(sampledVertices);
+					//get sub-solutions
+					HashSet<HashSet<ArrayList<Integer>>> subSolutions = findSubSolutions(sampledVertices, solNumILP, env);
 
-				//add subsolutions 
-				for(HashSet<ArrayList<Integer>> sub : subSolutions) {
-					//print hier subsolution uit om te zien wat er gebuert
+					//add subsolutions 
+					for(HashSet<ArrayList<Integer>> sub : subSolutions) {
+						TreeSet<ImmutablePair<ArrayList<Integer>, Double>> tentative = new TreeSet<>(currentSolution);
 
-					TreeSet<ImmutablePair<ArrayList<Integer>, Double>> tentative = new TreeSet<>(currentSolution);
-
-					//add cycles from subsolution i
-					ArrayList<ImmutablePair<ArrayList<Integer>, Double>> toAdd = new ArrayList<>();
-					for(ArrayList<Integer> c : sub) {
-						toAdd.add(new ImmutablePair<ArrayList<Integer>, Double>(c, CycleUtils.calculateCycle(matches, c, pairValues)));
+						//add cycles from subsolution i
+						ArrayList<ImmutablePair<ArrayList<Integer>, Double>> toAdd = new ArrayList<>();
+						for(ArrayList<Integer> c : sub) {
+							toAdd.add(new ImmutablePair<ArrayList<Integer>, Double>(c, CycleUtils.calculateCycle(matches, c, pairValues)));
+						}
+						tentative.addAll(toAdd);
+						neighbours.add(tentative);
 					}
-					tentative.addAll(toAdd);
-					neighbours.add(tentative);
+				}
+				else {
+					System.out.println("duplicate sample made");
 				}
 			}
-
+			
 			while(true) {
 				TreeSet<ImmutablePair<ArrayList<Integer>, Double>> next = neighbours.pollLast();
-
 				if(!tabuList.contains(next)) {
 					previousSolution = next;
 					int objVal = 0;
 					for(ImmutablePair<ArrayList<Integer>, Double> p : next) {
 						objVal += p.getLeft().size();
 					}
-					//System.out.println("best found: " + objVal + " in "+neighbours.size()+ " neighbours");
 					if(objVal>bestObj) {
 						bestObj = objVal;
 						bestSolution = new TreeSet<>(next);
 						if(bestObj>= UB-5) {
 							System.out.println("("+(Instant.now().getEpochSecond()-startSecond)+ "s) Nearing upper bound: best obj improved to: "+bestObj+" and UB is "+ UB);
+							System.out.println("iter "+iter+", sample size: " +SAMPLE);
 						}
 						//System.out.println("(" +(Instant.now().getEpochSecond()-startSecond)+ "s) best obj improved to: "+bestObj);
 						improveMoments.add((int) (Instant.now().getEpochSecond()-startSecond));
@@ -210,7 +270,7 @@ public class TabuLocalSearch {
 					}
 					else {
 						improveTime++;
-						if(improveTime>3) {
+						if(improveTime==3) {
 							//System.out.println();
 							//System.out.println("Increasing num of sampled cycles");
 							SAMPLE += 5; //dit afbouwen?
@@ -232,16 +292,19 @@ public class TabuLocalSearch {
 
 
 			}
+			iter++;
 		}
-		
+
 		System.out.println("Time limit reached");
 		System.out.println("Improvements:");
 		System.out.println(Arrays.toString(improveMoments.toArray()));
 		System.out.println(Arrays.toString(improveValues.toArray()));
+		//System.out.println("Improvements:");
+		//System.out.println(Arrays.toString(improveMoments.toArray()));
+		//System.out.println(Arrays.toString(improveValues.toArray()));
 	}
 
 	private HashSet<HashSet<ArrayList<Integer>>> findSubSolutions(HashSet<Integer> freeVertices, int solNumILP, GRBEnv env) throws GRBException {
-
 		SimpleDirectedGraph<Integer, DefaultEdge> g = new SimpleDirectedGraph<>(DefaultEdge.class);
 
 		//add vertices
@@ -264,7 +327,7 @@ public class TabuLocalSearch {
 		finder.setPathLimit(k);
 		ArrayList<ArrayList<Integer>> cycles = new ArrayList<>();
 		finder.findSimpleCycles(new CycleConsumer(cycles));
-		
+
 		//find combinations
 		return findCombinationsILP(cycles, matches, matches.length, solNumILP, env);
 
@@ -276,13 +339,13 @@ public class TabuLocalSearch {
 		GRBModel model = new GRBModel(env);
 		model.set(GRB.DoubleParam.TimeLimit, 1800.0);
 		model.set(GRB.DoubleParam.PoolGap, 1.0);
-		model.set(GRB.IntParam.PoolSearchMode, 2);
-		
+		model.set(GRB.IntParam.PoolSearchMode, 0);
+
 		model.set(GRB.IntParam.PoolSolutions, solNum);
 		model.set(GRB.IntParam.Seed, r.nextInt(100));
 
 		GRBVar[] z = new GRBVar[cycles.size()];
-		
+
 		for(int c = 0; c<cycles.size(); c++) {
 			String listString = cycles.get(c).stream().map(Object::toString)
 					.collect(Collectors.joining(","));
@@ -307,7 +370,7 @@ public class TabuLocalSearch {
 				cyclesPerVertex.get(v).add(i);
 			}
 		}
-		
+
 		//create constraints
 		for(ArrayList<Integer> vertex : cyclesPerVertex) {
 			if(!vertex.isEmpty()) {
@@ -319,7 +382,7 @@ public class TabuLocalSearch {
 
 			}
 		}
-		
+
 		model.optimize();
 		HashSet<HashSet<ArrayList<Integer>>> result = new HashSet<>(solNum);
 		for(int s = 0; s<solNum; s++) {
@@ -383,19 +446,19 @@ public class TabuLocalSearch {
 			}
 		}
 	}
-	
+
 	public ArrayList<ArrayList<Integer>> getSolutionCycles(){
 		ArrayList<ArrayList<Integer>> toReturn = new ArrayList<>(bestSolution.size());
-		
+
 		for(ImmutablePair<ArrayList<Integer>, Double> pair : bestSolution) {
-			
+
 			toReturn.add(pair.getLeft());
 		}
 		return toReturn;
 	}
-	
+
 	public boolean[][] getSolutionMatrix(){
-		
+
 		boolean[][] toReturn = new boolean[matches.length][matches.length];
 		for(ImmutablePair<ArrayList<Integer>, Double> pair : bestSolution) {
 			ArrayList<Integer> cycle = pair.getLeft();
@@ -405,8 +468,8 @@ public class TabuLocalSearch {
 			}
 			toReturn[cycle.get(cycle.size()-1)][cycle.get(0)] = true;
 		}
-		
-		
+
+
 		return toReturn;
 	}
 }
